@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoría de precios · Catalog vs Intelligent Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0D1113;
+    --panel: #161B1E;
+    --panel-alt: #1C2226;
+    --border: #2B3338;
+    --border-soft: #212729;
+    --text: #E7EBEC;
+    --text-muted: #8C979C;
+    --text-faint: #5E686C;
+    --mismatch: #D98A2B;
+    --mismatch-bg: rgba(217, 138, 43, 0.09);
+    --match: #4E9E75;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    padding: 48px 20px 80px;
+  }
+
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .brand { display: flex; flex-direction: column; gap: 4px; }
+
+  .brand .line1 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+  }
+
+  .brand h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  .brand h1 em {
+    font-style: normal;
+    color: var(--mismatch);
+  }
+
+  .meta-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 9px;
+    white-space: nowrap;
+    align-self: flex-start;
+  }
+
+  /* ---------- Search form ---------- */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  #productId {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 13px 14px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color .15s ease;
+  }
+
+  #productId::placeholder { color: var(--text-faint); }
+  #productId:focus { border-color: var(--mismatch); }
+
+  button#checkBtn {
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity .15s ease;
+  }
+  button#checkBtn:hover { opacity: .85; }
+  button#checkBtn:disabled { opacity: .4; cursor: default; }
+
+  .hint {
+    font-size: 12.5px;
+    color: var(--text-faint);
+    margin: 0 0 36px 2px;
+  }
+  .hint a { color: var(--text-muted); }
+
+  /* ---------- States ---------- */
+  #status {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 14px 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    background: var(--panel);
+    margin-bottom: 28px;
+    display: none;
+  }
+  #status.show { display: block; }
+  #status.error { border-color: rgba(217,138,43,.4); color: var(--mismatch); }
+
+  /* ---------- Manual fallback ---------- */
+  #manualBox {
+    display: none;
+    margin-bottom: 28px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 18px;
+    background: var(--panel);
+  }
+  #manualBox.show { display: block; }
+  #manualBox p { font-size: 13px; color: var(--text-muted); margin: 0 0 12px; line-height: 1.55; }
+  #manualBox p a { color: var(--text); }
+  .manual-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px){ .manual-cols { grid-template-columns: 1fr; } }
+  .manual-cols label { display:block; font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-bottom:6px; }
+  .manual-cols textarea {
+    width: 100%; min-height: 110px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 11.5px; border-radius: 4px; padding: 10px;
+    resize: vertical;
+  }
+  #manualBox button {
+    margin-top: 14px;
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    font-family: var(--sans); font-size: 13px; padding: 9px 16px; border-radius: 4px; cursor: pointer;
+  }
+  #manualBox button:hover { border-color: var(--text-muted); }
+
+  /* ---------- Result ---------- */
+  #result { display: none; }
+  #result.show { display: block; }
+
+  .product-line {
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .product-line .pname { font-weight: 600; }
+  .product-line .pid { font-family: var(--mono); color: var(--text-faint); font-size: 12.5px; }
+
+  .verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 3px;
+    margin: 14px 0 26px;
+  }
+  .verdict .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .verdict.mismatch { background: var(--mismatch-bg); color: var(--mismatch); border: 1px solid rgba(217,138,43,.35); }
+  .verdict.mismatch .dot { background: var(--mismatch); }
+  .verdict.match { background: rgba(78,158,117,.08); color: var(--match); border: 1px solid rgba(78,158,117,.3); }
+  .verdict.match .dot { background: var(--match); }
+
+  /* ---------- Ledger table ---------- */
+  .ledger {
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+
+  .ledger-head, .ledger-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 1fr 110px;
+    align-items: center;
+  }
+  @media (max-width: 640px){
+    .ledger-head, .ledger-row { grid-template-columns: 100px 1fr 1fr 70px; }
+  }
+
+  .ledger-head {
+    background: var(--panel-alt);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    color: var(--text-faint);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .ledger-head > div:nth-child(2), .ledger-head > div:nth-child(3) { font-family: var(--mono); }
+
+  .ledger-row {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--panel);
+  }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row.diff { background: var(--mismatch-bg); }
+
+  .ledger-row .field {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .ledger-row.diff .field { color: var(--mismatch); font-weight: 500; }
+
+  .ledger-row .val {
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+  .ledger-row .val .unit { color: var(--text-faint); font-size: 11px; margin-left: 3px; }
+
+  .ledger-row .flag {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+  }
+  .ledger-row.diff .flag { color: var(--mismatch); }
+  .ledger-row:not(.diff) .flag { color: var(--text-faint); }
+
+  /* ---------- Raw JSON ---------- */
+  .raw-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .raw-toggle button {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .raw-toggle button:hover { color: var(--text); border-color: var(--border); }
+
+  pre.raw {
+    display: none;
+    background: var(--panel-alt);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    overflow-x: auto;
+    max-height: 340px;
+    margin: 0 0 24px;
+  }
+  pre.raw.show { display: block; }
+
+  /* ---------- Evidence footer ---------- */
+  .evidence {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--border-soft);
+    padding-top: 16px;
+    line-height: 1.8;
+    word-break: break-all;
+  }
+  .evidence .k { color: var(--text-muted); }
+
+  footer.page {
+    max-width: 860px;
+    margin: 60px auto 0;
+    font-size: 12px;
+    color: var(--text-faint);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="line1">plazaVea · auditoría VTEX</span>
+      <h1>Diferencia de precios entre <em>Catalog</em> y <em>Intelligent Search</em></h1>
+    </div>
+    <span class="meta-tag" id="clock"></span>
+  </header>
+
+  <form id="searchForm" autocomplete="off">
+    <div class="search-row">
+      <input type="text" id="productId" placeholder="ID de producto, p. ej. 102124571" inputmode="numeric">
+      <button type="submit" id="checkBtn">Comparar</button>
+    </div>
+  </form>
+  <p class="hint">Consulta en vivo <code>catalog_system/pub/products/search</code> y <code>intelligent-search/v1/products</code> para el mismo <code>productId</code> y marca cualquier discrepancia de precio, útil como evidencia para el equipo de VTEX.</p>
+
+  <div id="status"></div>
+
+  <div id="manualBox">
+    <p>El navegador bloqueó la llamada directa por política CORS del dominio. Abre cada enlace, copia el JSON de la respuesta y pégalo abajo para generar el mismo reporte.</p>
+    <p>
+      <a id="manualLink1" href="#" target="_blank" rel="noopener">Abrir API Catalog →</a> &nbsp;·&nbsp;
+      <a id="manualLink2" href="#" target="_blank" rel="noopener">Abrir API Intelligent Search →</a>
+    </p>
+    <div class="manual-cols">
+      <div>
+        <label>JSON — Catalog System</label>
+        <textarea id="manualCatalog" placeholder="Pega aquí el JSON de catalog_system..."></textarea>
+      </div>
+      <div>
+        <label>JSON — Intelligent Search</label>
+        <textarea id="manualSearch" placeholder="Pega aquí el JSON de intelligent-search..."></textarea>
+      </div>
+    </div>
+    <button id="manualRun">Generar comparación</button>
+  </div>
+
+  <div id="result">
+    <div class="product-line">
+      <span class="pname" id="pName">—</span> &nbsp;<span class="pid" id="pId"></span>
+    </div>
+
+    <div class="verdict" id="verdict"><span class="dot"></span><span id="verdictText"></span></div>
+
+    <div class="ledger">
+      <div class="ledger-head">
+        <div>Campo</div>
+        <div>Catalog System</div>
+        <div>Intelligent Search</div>
+        <div>Estado</div>
+      </div>
+      <div id="ledgerBody"></div>
+    </div>
+
+    <div class="raw-toggle">
+      <button type="button" id="toggleRaw1">▸ Ver JSON crudo — Catalog System</button>
+      <button type="button" id="toggleRaw2">▸ Ver JSON crudo — Intelligent Search</button>
+    </div>
+    <pre class="raw" id="raw1"></pre>
+    <pre class="raw" id="raw2"></pre>
+
+    <div class="evidence" id="evidence"></div>
+  </div>
+
+</div>
+
+<footer class="page">Herramienta interna de verificación · sin almacenamiento de datos, todo ocurre en el navegador</footer>
+
+<script>
+(function(){
+  const CATALOG_URL = (id) => `https://www.plazavea.com.pe/api/catalog_system/pub/products/search?fq=productId:${encodeURIComponent(id)}&sc=1`;
+  const SEARCH_URL  = (id) => `https://www.plazavea.com.pe/api/intelligent-search/v1/products?field=id&value=${encodeURIComponent(id)}&sc=1`;
+
+  const els = {
+    form: document.getElementById('searchForm'),
+    input: document.getElementById('productId'),
+    btn: document.getElementById('checkBtn'),
+    status: document.getElementById('status'),
+    manualBox: document.getElementById('manualBox'),
+    manualLink1: document.getElementById('manualLink1'),
+    manualLink2: document.getElementById('manualLink2'),
+    manualCatalog: document.getElementById('manualCatalog'),
+    manualSearch: document.getElementById('manualSearch'),
+    manualRun: document.getElementById('manualRun'),
+    result: document.getElementById('result'),
+    pName: document.getElementById('pName'),
+    pId: document.getElementById('pId'),
+    verdict: document.getElementById('verdict'),
+    verdictText: document.getElementById('verdictText'),
+    ledgerBody: document.getElementById('ledgerBody'),
+    raw1: document.getElementById('raw1'),
+    raw2: document.getElementById('raw2'),
+    toggleRaw1: document.getElementById('toggleRaw1'),
+    toggleRaw2: document.getElementById('toggleRaw2'),
+    evidence: document.getElementById('evidence'),
+    clock: document.getElementById('clock'),
+  };
+
+  function tickClock(){
+    const now = new Date();
+    els.clock.textContent = now.toLocaleString('es-PE', { hour12:false });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  function setStatus(msg, isError){
+    els.status.textContent = msg;
+    els.status.className = 'show' + (isError ? ' error' : '');
+  }
+  function clearStatus(){
+    els.status.className = '';
+    els.status.textContent = '';
+  }
+
+  function money(v){
+    if (v === undefined || v === null) return null;
+    return Number(v);
+  }
+  function fmt(v){
+    if (v === null || v === undefined) return '—';
+    return 'S/ ' + v.toFixed(2);
+  }
+
+  // Pulls the fields we care about out of each API's shape.
+  function extractCatalog(json){
+    const p = Array.isArray(json) ? json[0] : json;
+    if (!p) return null;
+    const item = (p.items || [])[0];
+    const seller = item && (item.sellers || [])[0];
+    const offer = seller && seller.commertialOffer;
+    return {
+      productName: p.productName,
+      productId: p.productId,
+      itemId: item && item.itemId,
+      sellerName: seller && seller.sellerName,
+      price: money(offer && offer.Price),
+      listPrice: money(offer && offer.ListPrice),
+      priceWithoutDiscount: money(offer && offer.PriceWithoutDiscount),
+      availableQty: offer && offer.AvailableQuantity,
+    };
+  }
+
+  function extractSearch(json){
+    if (!json) return null;
+    const item = (json.items || [])[0];
+    const seller = item && (item.sellers || [])[0];
+    const offer = seller && seller.commertialOffer;
+    return {
+      productName: json.productName,
+      productId: json.productId,
+      itemId: item && item.itemId,
+      sellerName: seller && seller.sellerName,
+      price: money(offer && offer.Price),
+      listPrice: money(offer && offer.ListPrice),
+      priceWithoutDiscount: money(offer && offer.PriceWithoutDiscount),
+      availableQty: offer && offer.AvailableQuantity,
+    };
+  }
+
+  const FIELDS = [
+    { key: 'price', label: 'Price' },
+    { key: 'listPrice', label: 'ListPrice' },
+    { key: 'priceWithoutDiscount', label: 'PriceWithoutDiscount' },
+    { key: 'availableQty', label: 'AvailableQuantity', isMoney: false },
+  ];
+
+  function render(id, catalog, search, rawCatalogText, rawSearchText){
+    const a = extractCatalog(catalog);
+    const b = extractSearch(search);
+
+    if (!a && !b){
+      setStatus('No se encontró el producto ' + id + ' en ninguna de las dos APIs.', true);
+      els.result.className = '';
+      return;
+    }
+
+    clearStatus();
+    els.result.className = 'show';
+
+    const name = (a && a.productName) || (b && b.productName) || '(sin nombre)';
+    els.pName.textContent = name;
+    els.pId.textContent = 'productId: ' + id;
+
+    let anyDiff = false;
+    let rowsHtml = '';
+    FIELDS.forEach(f => {
+      const va = a ? a[f.key] : undefined;
+      const vb = b ? b[f.key] : undefined;
+      const isMoney = f.isMoney !== false;
+      const differs = (va === undefined || vb === undefined) ? false : va !== vb;
+      if (differs) anyDiff = true;
+      const dispA = isMoney ? fmt(va) : (va ?? '—');
+      const dispB = isMoney ? fmt(vb) : (vb ?? '—');
+      rowsHtml += `
+        <div class="ledger-row ${differs ? 'diff' : ''}">
+          <div class="field">${f.label}</div>
+          <div class="val">${dispA}</div>
+          <div class="val">${dispB}</div>
+          <div class="flag">${differs ? '≠ difiere' : '= igual'}</div>
+        </div>`;
+    });
+    els.ledgerBody.innerHTML = rowsHtml;
+
+    els.verdict.className = 'verdict ' + (anyDiff ? 'mismatch' : 'match');
+    els.verdictText.textContent = anyDiff
+      ? 'Se encontraron diferencias de precio entre ambas APIs'
+      : 'Ambas APIs devuelven los mismos precios';
+
+    els.raw1.textContent = rawCatalogText;
+    els.raw2.textContent = rawSearchText;
+    els.raw1.className = 'raw';
+    els.raw2.className = 'raw';
+    els.toggleRaw1.textContent = '▸ Ver JSON crudo — Catalog System';
+    els.toggleRaw2.textContent = '▸ Ver JSON crudo — Intelligent Search';
+
+    const now = new Date();
+    els.evidence.innerHTML =
+      `<span class="k">capturado:</span> ${now.toISOString()}<br>` +
+      `<span class="k">catalog_system:</span> ${CATALOG_URL(id)}<br>` +
+      `<span class="k">intelligent-search:</span> ${SEARCH_URL(id)}`;
+  }
+
+  async function fetchJson(url){
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    return { json: JSON.parse(text), text };
+  }
+
+  async function runFetch(id){
+    els.result.className = '';
+    els.manualBox.className = '';
+    els.btn.disabled = true;
+    setStatus('Consultando catalog_system e intelligent-search para el producto ' + id + '…');
+
+    try {
+      const [c, s] = await Promise.all([
+        fetchJson(CATALOG_URL(id)),
+        fetchJson(SEARCH_URL(id)),
+      ]);
+      render(id, c.json, s.json, JSON.stringify(c.json, null, 2), JSON.stringify(s.json, null, 2));
+    } catch (err) {
+      // Likely CORS or network block from this domain — offer the manual fallback.
+      setStatus('No se pudo llamar directamente a las APIs desde este navegador (posible bloqueo CORS del dominio). Usa el formulario manual de abajo.', true);
+      els.manualLink1.href = CATALOG_URL(id);
+      els.manualLink2.href = SEARCH_URL(id);
+      els.manualBox.className = 'show';
+      els.manualBox.dataset.productId = id;
+    } finally {
+      els.btn.disabled = false;
+    }
+  }
+
+  els.form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = els.input.value.trim();
+    if (!id) { setStatus('Ingresa un productId válido.', true); return; }
+    runFetch(id);
+  });
+
+  els.manualRun.addEventListener('click', () => {
+    const id = els.manualBox.dataset.productId || els.input.value.trim();
+    let cJson, sJson;
+    try {
+      cJson = JSON.parse(els.manualCatalog.value);
+    } catch (e) {
+      setStatus('El JSON de Catalog System no es válido: ' + e.message, true);
+      return;
+    }
+    try {
+      sJson = JSON.parse(els.manualSearch.value);
+    } catch (e) {
+      setStatus('El JSON de Intelligent Search no es válido: ' + e.message, true);
+      return;
+    }
+    render(id, cJson, sJson, JSON.stringify(cJson, null, 2), JSON.stringify(sJson, null, 2));
+  });
+
+  function wireToggle(btn, pre, label){
+    btn.addEventListener('click', () => {
+      const open = pre.classList.toggle('show');
+      btn.textContent = (open ? '▾ Ocultar' : '▸ Ver') + ' JSON crudo — ' + label;
+    });
+  }
+  wireToggle(els.toggleRaw1, els.raw1, 'Catalog System');
+  wireToggle(els.toggleRaw2, els.raw2, 'Intelligent Search');
+
+  // Prefill with the product ID already confirmed to show the discrepancy.
+  els.input.value = '102124571';
+})();
+</script>
+</body>
+</html>
