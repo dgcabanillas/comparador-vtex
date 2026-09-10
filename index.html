@@ -541,11 +541,27 @@
       `<span class="k">intelligent-search:</span> ${SEARCH_URL(id)}`;
   }
 
-  async function fetchJson(url){
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  // Public CORS proxy used only as a fallback when plazavea.com.pe doesn't
+  // send Access-Control-Allow-Origin for this page's domain. It relays the
+  // request and adds CORS headers on top of the untouched response body.
+  const PROXY_URL = (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
+  async function fetchJson(url, viaProxy){
+    const finalUrl = viaProxy ? PROXY_URL(url) : url;
+    const res = await fetch(finalUrl, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     return { json: JSON.parse(text), text };
+  }
+
+  // Tries a direct call first (works when run locally or if plazaVea ever
+  // allows the origin), then falls back to the CORS proxy automatically.
+  async function fetchJsonWithFallback(url){
+    try {
+      return await fetchJson(url, false);
+    } catch (directErr) {
+      return await fetchJson(url, true);
+    }
   }
 
   async function runFetch(id){
@@ -556,13 +572,13 @@
 
     try {
       const [c, s] = await Promise.all([
-        fetchJson(CATALOG_URL(id)),
-        fetchJson(SEARCH_URL(id)),
+        fetchJsonWithFallback(CATALOG_URL(id)),
+        fetchJsonWithFallback(SEARCH_URL(id)),
       ]);
       render(id, c.json, s.json, JSON.stringify(c.json, null, 2), JSON.stringify(s.json, null, 2));
     } catch (err) {
-      // Likely CORS or network block from this domain — offer the manual fallback.
-      setStatus('No se pudo llamar directamente a las APIs desde este navegador (posible bloqueo CORS del dominio). Usa el formulario manual de abajo.', true);
+      // Direct call and proxy both failed — offer the manual fallback.
+      setStatus('No se pudo obtener los datos ni directamente ni vía proxy CORS (' + err.message + '). Usa el formulario manual de abajo.', true);
       els.manualLink1.href = CATALOG_URL(id);
       els.manualLink2.href = SEARCH_URL(id);
       els.manualBox.className = 'show';
