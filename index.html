@@ -295,6 +295,76 @@
   }
   pre.raw.show { display: block; }
 
+  /* ---------- ID type select ---------- */
+  #idType {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 0 12px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+  }
+  #idType:focus { border-color: var(--mismatch); }
+
+  /* ---------- Endpoint links panel ---------- */
+  #endpointsBox {
+    display: none;
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    background: var(--panel);
+    padding: 14px 16px;
+    margin-bottom: 24px;
+  }
+  #endpointsBox.show { display: block; }
+  #endpointsBox .ep-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .ep-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+  }
+  .ep-row + .ep-row { border-top: 1px solid var(--border-soft); }
+  .ep-row .ep-label {
+    font-family: var(--sans);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 92px;
+  }
+  .ep-row a {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    border-bottom: 1px dotted var(--border);
+  }
+  .ep-row a:hover { color: var(--mismatch); border-bottom-color: var(--mismatch); }
+  .ep-row .ep-copy {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 4px 9px;
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ep-row .ep-copy:hover { color: var(--text); border-color: var(--text-muted); }
+
   /* ---------- Evidence footer ---------- */
   .evidence {
     font-family: var(--mono);
@@ -306,6 +376,8 @@
     word-break: break-all;
   }
   .evidence .k { color: var(--text-muted); }
+  .evidence a { color: var(--text-muted); }
+  .evidence a:hover { color: var(--text); }
 
   footer.page {
     max-width: 860px;
@@ -329,13 +401,32 @@
 
   <form id="searchForm" autocomplete="off">
     <div class="search-row">
-      <input type="text" id="productId" placeholder="ID de producto, p. ej. 102124571" inputmode="numeric">
+      <select id="idType">
+        <option value="productId">productId</option>
+        <option value="skuId">skuId</option>
+        <option value="referenceId">referenceId (RefId)</option>
+      </select>
+      <input type="text" id="productId" placeholder="Valor del identificador, p. ej. 102124571">
       <button type="submit" id="checkBtn">Comparar</button>
     </div>
   </form>
-  <p class="hint">Consulta en vivo <code>catalog_system/pub/products/search</code> y <code>intelligent-search/v1/products</code> para el mismo <code>productId</code> y marca cualquier discrepancia de precio, útil como evidencia para el equipo de VTEX.</p>
+  <p class="hint">Consulta en vivo <code>catalog_system/pub/products/search</code> y <code>intelligent-search/v1/products</code> para el mismo identificador y marca cualquier discrepancia de precio, útil como evidencia para el equipo de VTEX.</p>
 
   <div id="status"></div>
+
+  <div id="endpointsBox">
+    <div class="ep-title">ENDPOINTS CONSULTADOS · ábrelos en el navegador, Postman o curl</div>
+    <div class="ep-row">
+      <span class="ep-label">Catalog</span>
+      <a id="epCatalog" href="#" target="_blank" rel="noopener"></a>
+      <button type="button" class="ep-copy" data-target="epCatalog">Copiar</button>
+    </div>
+    <div class="ep-row">
+      <span class="ep-label">Intelligent Search</span>
+      <a id="epSearch" href="#" target="_blank" rel="noopener"></a>
+      <button type="button" class="ep-copy" data-target="epSearch">Copiar</button>
+    </div>
+  </div>
 
   <div id="manualBox">
     <p>El navegador bloqueó la llamada directa por política CORS del dominio. Abre cada enlace, copia el JSON de la respuesta y pégalo abajo para generar el mismo reporte.</p>
@@ -389,14 +480,33 @@
 
 <script>
 (function(){
-  const CATALOG_URL = (id) => `https://www.plazavea.com.pe/api/catalog_system/pub/products/search?fq=productId:${encodeURIComponent(id)}&sc=1`;
-  const SEARCH_URL  = (id) => `https://www.plazavea.com.pe/api/intelligent-search/v1/products?field=id&value=${encodeURIComponent(id)}&sc=1`;
+  // Each ID type maps to a different query on each API.
+  //  - catalog_system (legacy) filters with fq=<field>:<value>
+  //  - intelligent-search v1 filters with field=<field>&value=<value>
+  const ID_TYPES = {
+    productId:   { catalogField: 'productId',        searchField: 'id' },
+    skuId:       { catalogField: 'skuId',             searchField: 'sku' },
+    referenceId: { catalogField: 'alternateIds_RefId', searchField: 'reference' },
+  };
+
+  const CATALOG_URL = (id, type) => {
+    const field = ID_TYPES[type].catalogField;
+    return `https://www.plazavea.com.pe/api/catalog_system/pub/products/search?fq=${field}:${encodeURIComponent(id)}&sc=1`;
+  };
+  const SEARCH_URL = (id, type) => {
+    const field = ID_TYPES[type].searchField;
+    return `https://www.plazavea.com.pe/api/intelligent-search/v1/products?field=${field}&value=${encodeURIComponent(id)}&sc=1`;
+  };
 
   const els = {
     form: document.getElementById('searchForm'),
     input: document.getElementById('productId'),
+    idType: document.getElementById('idType'),
     btn: document.getElementById('checkBtn'),
     status: document.getElementById('status'),
+    endpointsBox: document.getElementById('endpointsBox'),
+    epCatalog: document.getElementById('epCatalog'),
+    epSearch: document.getElementById('epSearch'),
     manualBox: document.getElementById('manualBox'),
     manualLink1: document.getElementById('manualLink1'),
     manualLink2: document.getElementById('manualLink2'),
@@ -485,7 +595,7 @@
     { key: 'availableQty', label: 'AvailableQuantity', isMoney: false },
   ];
 
-  function render(id, catalog, search, rawCatalogText, rawSearchText){
+  function render(id, catalog, search, rawCatalogText, rawSearchText, catalogUrl, searchUrl){
     const a = extractCatalog(catalog);
     const b = extractSearch(search);
 
@@ -535,10 +645,12 @@
     els.toggleRaw2.textContent = '▸ Ver JSON crudo — Intelligent Search';
 
     const now = new Date();
+    const cUrl = catalogUrl || '';
+    const sUrl = searchUrl || '';
     els.evidence.innerHTML =
       `<span class="k">capturado:</span> ${now.toISOString()}<br>` +
-      `<span class="k">catalog_system:</span> ${CATALOG_URL(id)}<br>` +
-      `<span class="k">intelligent-search:</span> ${SEARCH_URL(id)}`;
+      `<span class="k">catalog_system:</span> ${cUrl ? `<a href="${cUrl}" target="_blank" rel="noopener">${cUrl}</a>` : '(pegado manualmente)'}<br>` +
+      `<span class="k">intelligent-search:</span> ${sUrl ? `<a href="${sUrl}" target="_blank" rel="noopener">${sUrl}</a>` : '(pegado manualmente)'}`;
   }
 
   // Public CORS proxy used only as a fallback when plazavea.com.pe doesn't
@@ -564,25 +676,38 @@
     }
   }
 
-  async function runFetch(id){
+  function showEndpoints(catalogUrl, searchUrl){
+    els.epCatalog.href = catalogUrl;
+    els.epCatalog.textContent = catalogUrl;
+    els.epSearch.href = searchUrl;
+    els.epSearch.textContent = searchUrl;
+    els.endpointsBox.className = 'show';
+  }
+
+  async function runFetch(id, type){
     els.result.className = '';
     els.manualBox.className = '';
     els.btn.disabled = true;
-    setStatus('Consultando catalog_system e intelligent-search para el producto ' + id + '…');
+    setStatus('Consultando catalog_system e intelligent-search para el ' + type + ' ' + id + '…');
+
+    const catalogUrl = CATALOG_URL(id, type);
+    const searchUrl = SEARCH_URL(id, type);
+    showEndpoints(catalogUrl, searchUrl);
 
     try {
       const [c, s] = await Promise.all([
-        fetchJsonWithFallback(CATALOG_URL(id)),
-        fetchJsonWithFallback(SEARCH_URL(id)),
+        fetchJsonWithFallback(catalogUrl),
+        fetchJsonWithFallback(searchUrl),
       ]);
-      render(id, c.json, s.json, JSON.stringify(c.json, null, 2), JSON.stringify(s.json, null, 2));
+      render(id, c.json, s.json, JSON.stringify(c.json, null, 2), JSON.stringify(s.json, null, 2), catalogUrl, searchUrl);
     } catch (err) {
       // Direct call and proxy both failed — offer the manual fallback.
-      setStatus('No se pudo obtener los datos ni directamente ni vía proxy CORS (' + err.message + '). Usa el formulario manual de abajo.', true);
-      els.manualLink1.href = CATALOG_URL(id);
-      els.manualLink2.href = SEARCH_URL(id);
+      setStatus('No se pudo obtener los datos ni directamente ni vía proxy CORS (' + err.message + '). Usa el formulario manual de abajo, o abre los enlaces de arriba en Postman.', true);
+      els.manualLink1.href = catalogUrl;
+      els.manualLink2.href = searchUrl;
       els.manualBox.className = 'show';
       els.manualBox.dataset.productId = id;
+      els.manualBox.dataset.idType = type;
     } finally {
       els.btn.disabled = false;
     }
@@ -591,12 +716,14 @@
   els.form.addEventListener('submit', (e) => {
     e.preventDefault();
     const id = els.input.value.trim();
-    if (!id) { setStatus('Ingresa un productId válido.', true); return; }
-    runFetch(id);
+    const type = els.idType.value;
+    if (!id) { setStatus('Ingresa un valor de búsqueda válido.', true); return; }
+    runFetch(id, type);
   });
 
   els.manualRun.addEventListener('click', () => {
     const id = els.manualBox.dataset.productId || els.input.value.trim();
+    const type = els.manualBox.dataset.idType || els.idType.value;
     let cJson, sJson;
     try {
       cJson = JSON.parse(els.manualCatalog.value);
@@ -610,7 +737,22 @@
       setStatus('El JSON de Intelligent Search no es válido: ' + e.message, true);
       return;
     }
-    render(id, cJson, sJson, JSON.stringify(cJson, null, 2), JSON.stringify(sJson, null, 2));
+    render(id, cJson, sJson, JSON.stringify(cJson, null, 2), JSON.stringify(sJson, null, 2), CATALOG_URL(id, type), SEARCH_URL(id, type));
+  });
+
+  // Copy-to-clipboard buttons next to each endpoint link.
+  document.querySelectorAll('.ep-copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const link = document.getElementById(btn.dataset.target);
+      try {
+        await navigator.clipboard.writeText(link.href);
+        const original = btn.textContent;
+        btn.textContent = '¡Copiado!';
+        setTimeout(() => { btn.textContent = original; }, 1400);
+      } catch (e) {
+        // Clipboard API unavailable — the link itself is still openable.
+      }
+    });
   });
 
   function wireToggle(btn, pre, label){
